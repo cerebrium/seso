@@ -63,4 +63,4 @@ function runSolutions(sourceCount) {
 }
 
 // Adjust this input to see how your solutions perform under various loads.
-runSolutions(100);
+runSolutions(5);

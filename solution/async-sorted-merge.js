@@ -4,40 +4,94 @@
 
 module.exports = (logSources, printer) => {
   return new Promise(async (resolve, reject) => {
-    const handleBatching = async (logSources, printer) => {
-      console.log("logSources", logSources.length);
-      const promises = logSources.map((logSource) => logSource.popAsync());
-      const results = await Promise.all(promises);
+    /*
 
-      const logEntries = results.filter((result) => result !== false);
-      const logSourcesWithEntries = logEntries.map((logEntry, i) => {
+    Make array of tuples of logSource and logEntry
+
+  */
+
+    let logTuples = await Promise.all(
+      logSources.map(async (logSource) => {
         return {
-          logEntry,
-          logSource: logSources[i],
+          logEntry: await logSource.popAsync(),
+          logSource,
         };
-      });
+      })
+    );
 
-      const sortedLogSources = logSourcesWithEntries.sort((a, b) => {
-        return a.logEntry.date - b.logEntry.date;
-      });
+    /*
+  
+      Sort array of tuples by date of log source
+  
+    */
 
-      sortedLogSources.forEach((sortedLogSource) => {
-        printer.print(sortedLogSource.logEntry);
-      });
+    let sortedLogTuples = logTuples.sort((a, b) => {
+      return a.logEntry.date - b.logEntry.date;
+    });
 
-      const logSourcesWithoutEntries = logSources.filter((logSource) => {
-        return !logSourcesWithEntries.some((logSourceWithEntry) => {
-          return logSourceWithEntry.logSource === logSource;
-        });
-      });
+    /*
+  
+  
+      create a function that will take 2 log sources
+      it will then compare the dates of the log sources
+      and return the log source with the earlier date
+      exhausted up to the point of the log source with the later date.
+  
+      it returns the new later date log source
+  
+  
+    */
 
-      if (logSourcesWithoutEntries.length > 0) {
-        await handleBatching(logSourcesWithoutEntries, printer);
+    const compareLogSourcesAndExhaustEarlierSource = async (
+      logSource1,
+      logSource2
+    ) => {
+      let earlierLogSource;
+      let laterLogSource;
+
+      if (logSource1.logEntry.date < logSource2.logEntry.date) {
+        earlierLogSource = logSource1;
+        laterLogSource = logSource2;
+      } else {
+        earlierLogSource = logSource2;
+        laterLogSource = logSource1;
+      }
+
+      while (earlierLogSource.logEntry.date < laterLogSource.logEntry.date) {
+        printer.print(earlierLogSource.logEntry);
+        earlierLogSource.logEntry = await earlierLogSource.logSource.popAsync();
       }
     };
 
-    await handleBatching(logSources, printer);
-    printer.done();
-    resolve();
+    /*
+  
+      Identify the top two log sources
+      and their indices in the sortedLogTuples array
+  
+      call the compare and print function
+  
+      resort
+  
+      while the top log source is not exhausted
+      call the compare function
+  
+    */
+
+    let topLogSource = sortedLogTuples[0];
+    let secondLogSource = sortedLogTuples[1];
+
+    while (topLogSource.logEntry) {
+      await compareLogSourcesAndExhaustEarlierSource(
+        topLogSource,
+        secondLogSource
+      );
+      sortedLogTuples.sort((a, b) => {
+        return a.logEntry.date - b.logEntry.date;
+      });
+      topLogSource = sortedLogTuples[0];
+      secondLogSource = sortedLogTuples[1];
+    }
+
+    return resolve(printer.done());
   });
 };
