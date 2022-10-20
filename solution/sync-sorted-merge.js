@@ -1,86 +1,56 @@
 "use strict";
 
 // Print all entries, across all of the sources, in chronological order.
+const minHeap = require("./ds/minHeap");
 
 module.exports = (logSources, printer) => {
   /*
 
     Make array of tuples of logSource and logEntry
+    and insert them into the heap
 
   */
 
-  let logTuples = logSources.map((logSource) => {
-    return {
-      logEntry: logSource.pop(),
-      logSource,
-    };
-  });
-
-  /*
-
-    Sort array of tuples by date of log source
-
-  */
-
-  let sortedLogTuples = logTuples.sort((a, b) => {
-    return a.logEntry.date - b.logEntry.date;
-  });
+  let i = 0;
+  for (let logSource of logSources) {
+    let logEntry = logSource.pop();
+    if (logEntry) {
+      minHeap.insert({ logSource, logEntry, i });
+    }
+    i++;
+  }
 
   /*
 
 
-    create a function that will take 2 log sources
-    it will then compare the dates of the log sources
-    and return the log source with the earlier date
-    exhausted up to the point of the log source with the later date.
+    While the heap is not empty, extract the min, and nearest neighbor
+    print all dates from the min, whilst above the nearest neighbor.
 
-    it returns the new later date log source
+    Place both back into the heap
+*/
 
-
-  */
-
-  const compareLogSourcesAndExhaustEarlierSource = (logSource1, logSource2) => {
-    let earlierLogSource;
-    let laterLogSource;
-
-    if (logSource1.logEntry.date < logSource2.logEntry.date) {
-      earlierLogSource = logSource1;
-      laterLogSource = logSource2;
+  while (true) {
+    if (minHeap.minHeap.length === 1) {
+      let { logSource, logEntry } = minHeap.extractMin();
+      while (logEntry) {
+        printer.print(logEntry);
+        logEntry = logSource.pop();
+      }
+      break;
     } else {
-      earlierLogSource = logSource2;
-      laterLogSource = logSource1;
+      let { logSource, logEntry, i } = minHeap.extractMin();
+
+      let secondDate = minHeap.peek();
+
+      while (logEntry.date < secondDate && !logSource.drained) {
+        printer.print(logEntry);
+        logEntry = logSource.pop();
+      }
+
+      if (logSource.drained === false) {
+        minHeap.insert({ logSource, logEntry, i });
+      }
     }
-
-    while (earlierLogSource.logEntry.date < laterLogSource.logEntry.date) {
-      printer.print(earlierLogSource.logEntry);
-      earlierLogSource.logEntry = earlierLogSource.logSource.pop();
-    }
-  };
-
-  /*
-
-    Identify the top two log sources
-    and their indices in the sortedLogTuples array
-
-    call the compare and print function
-
-    resort
-
-    while the top log source is not exhausted
-    call the compare function
-
-  */
-
-  let topLogSource = sortedLogTuples[0];
-  let secondLogSource = sortedLogTuples[1];
-
-  while (topLogSource.logEntry) {
-    compareLogSourcesAndExhaustEarlierSource(topLogSource, secondLogSource);
-    sortedLogTuples.sort((a, b) => {
-      return a.logEntry.date - b.logEntry.date;
-    });
-    topLogSource = sortedLogTuples[0];
-    secondLogSource = sortedLogTuples[1];
   }
 
   printer.done();
